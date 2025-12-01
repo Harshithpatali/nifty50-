@@ -446,3 +446,13 @@ I’ll follow your instructions.
 
 
 
+
+
+
+
+\## 🖼 App UI Preview
+
+!\[Nifty50 Stop Prediction UI](assets/ui.png)
+
+
+
