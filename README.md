@@ -42,3 +42,27 @@ An **end-to-end MLOps + Time Series prediction system** that:
 
 ## 📁 Project Structure
 
+nifty50-predictor/
+├── backend/
+│   ├── src/
+│   │   ├── etl.py
+│   │   ├── features.py
+│   │   ├── train.py
+│   │   └── api.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── streamlit_app.py
+│   ├── Dockerfile
+│   └── requirements.txt
+├── airflow/dags/
+├── data/
+│   ├── raw/
+│   ├── clean/
+│   └── features/
+├── postgres_data/    # docker volume
+├── tests/
+├── .env.example
+├── docker-compose.yml
+└── README.md
+
