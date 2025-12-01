@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nifty_postgres
+    environment:
+      POSTGRES_DB: niftydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: newpassword
+    ports:
+      - "5433:5432"   # host:container (use 5433 so it doesn't clash with your existing 5432)
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nifty_backend
+    depends_on:
+      - postgres
+    environment:
+      # DB config for containers (overrides .env)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: niftydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: newpassword
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nifty_frontend
+    depends_on:
+      - backend
+    environment:
+      API_BASE_URL: "http://backend:8000"
+    ports:
+      - "8501:8501"

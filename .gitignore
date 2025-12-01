@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# Data folders
+data/raw/
+data/clean/
+data/features/
+mlflow/artifacts/
+mlflow/models/
+
+# Logs
+logs/
+*.log
+
+# IDE & OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Docker
+postgres_data/
+*.pid
+airflow/

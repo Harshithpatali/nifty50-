@@ -1,0 +1,14 @@
+# Docker Practices for Nifty50 Stop Prediction
+
+1. Use slim or alpine images where possible for fast builds.
+2. Never store API keys inside Dockerfile, use environment variables instead.
+3. Keep Postgres mapped to non-conflicting host ports (e.g., 5433 for container 5432).
+4. Use docker-compose profiles for local vs prod later.
+5. Add healthchecks for DB and API when scaling.
+6. Mount volumes for models and data only during dev testing.
+7. Rebuild services individually using:
+   docker compose build backend
+8. View logs cleanly using:
+   docker compose logs -f backend
+9. Use .gitignore to avoid pushing venv, env files, data, artifacts.
+10. Use --no-cache during clean rebuilds when dependency conflicts appear.
