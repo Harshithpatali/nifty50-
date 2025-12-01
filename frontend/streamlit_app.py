@@ -16,16 +16,17 @@ st.set_page_config(
 
 st.title("📈 Nifty50 Next-Day Price Prediction")
 st.caption("Streamlit Cloud version • Linear Regression + yfinance (no FastAPI / no Postgres)")
-
 st.markdown("---")
 
 
 # ================== DATA & FEATURES ==================
 @st.cache_data(ttl=60 * 60)
 def load_nifty_data():
-    # Adjust ticker if you used a different one in training (e.g. ^NSEI)
+    # Adjust ticker if you used a different one (e.g. ^NSEI)
     df = yf.download("^NSEI", period="2y", interval="1d")
     df.reset_index(inplace=True)
+
+    # Make sure we have the same column names you used in feature engineering
     df.rename(
         columns={
             "Date": "Date",
@@ -42,45 +43,70 @@ def load_nifty_data():
 
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Replicates your feature engineering script, but starting from yfinance data
+    instead of CSV. This matches your nifty50_features pipeline.
+    """
     df = df.copy()
-    df = df.sort_values("Date")
 
-    # Same idea as your DB features
+    # Ensure Date is datetime and sorted
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.sort_values("Date", inplace=True)
+    df.reset_index(drop=True, inplace=True)
+
+    # ---- Feature 1: Previous Close (Lag 1) ----
     df["Prev_Close"] = df["Close"].shift(1)
 
-    # Return sign: sign of daily return (Close - Prev_Close)
-    df["Return_Sign"] = np.sign(df["Close"] - df["Prev_Close"])
+    # ---- Feature 2: Daily Return (percentage change) ----
+    df["Return"] = df["Close"].pct_change()
 
-    # 5-day volatility of returns (approx)
-    returns = df["Close"].pct_change()
-    df["Volatility_5d"] = returns.rolling(5).std()
+    # ---- Feature 3: Return Direction (1 = Up, 0 = Down) ----
+    df["Return_Sign"] = (df["Return"] > 0).astype(int)
 
-    # Moving averages
-    df["MA_5"] = df["Close"].rolling(5).mean()
-    df["MA_20"] = df["Close"].rolling(20).mean()
+    # ---- Feature 4: Rolling Volatility (5-day standard deviation) ----
+    df["Volatility_5d"] = df["Return"].rolling(window=5).std()
 
-    # High-Low difference
+    # ---- Feature 5: Moving Averages ----
+    df["MA_5"] = df["Close"].rolling(window=5).mean()
+    df["MA_20"] = df["Close"].rolling(window=20).mean()
+
+    # ---- Feature 6: Price Trend (1 if above MA20, else 0) ----
+    df["Close_Above_MA20"] = (df["Close"] > df["MA_20"]).astype(int)
+
+    # ---- Feature 7: Rolling High/Low difference ----
     df["HL_Diff"] = df["High"] - df["Low"]
 
-    # Days since start
+    # ---- Feature 8: Days Since Start (numerical time feature) ----
     df["Days"] = (df["Date"] - df["Date"].min()).dt.days
 
-    # Date breakdown
+    # ---- Feature 9: Date breakdown features ----
     df["Day"] = df["Date"].dt.day
     df["Month"] = df["Date"].dt.month
     df["Year"] = df["Date"].dt.year
-    df["Weekday"] = df["Date"].dt.weekday  # Monday=0
+    df["Weekday"] = df["Date"].dt.weekday  # 0=Monday, 6=Sunday
+    df["DayName"] = df["Date"].dt.day_name()
 
-    # Volume MA 5
-    df["Volume_MA_5"] = df["Volume"].rolling(5).mean()
+    # ---- Feature 10: Volume rolling average ----
+    df["Volume_MA_5"] = df["Volume"].rolling(window=5).mean()
 
-    # Drop rows with NaN from rolling/shift
-    df = df.dropna().reset_index(drop=True)
+    # ---- Remove initial NaN rows caused by shifting/rolling ----
+    df.dropna(inplace=True)
+    df.reset_index(drop=True, inplace=True)
 
     return df
 
 
 def prepare_xy(df_feat: pd.DataFrame):
+    """
+    Use the same features as in your training script:
+
+    X = df[[
+        "Prev_Close", "Return_Sign", "Volatility_5d",
+        "MA_5", "MA_20", "HL_Diff", "Days",
+        "Day", "Month", "Year", "Weekday", "Volume_MA_5", "Volume"
+    ]]
+    y = df["Close"]
+    """
     feature_cols = [
         "Prev_Close", "Return_Sign", "Volatility_5d",
         "MA_5", "MA_20", "HL_Diff", "Days",
@@ -179,7 +205,7 @@ with st.expander("Show feature-engineered data (tail)"):
 
 st.markdown("---")
 st.caption(
-    "This Streamlit Cloud app runs everything inside one script: "
-    "yfinance → feature engineering → Linear Regression → prediction.\n"
-    "Your local FastAPI + Postgres pipeline is still valid for offline / local use."
+    "This Streamlit Cloud app runs everything inside one script:\n"
+    "yfinance → feature engineering (same as your Python script) → Linear Regression → prediction.\n"
+    "Your local FastAPI + Postgres pipeline is still valid for local / offline use."
 )
