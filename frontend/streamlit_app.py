@@ -22,11 +22,13 @@ st.markdown("---")
 # ================== DATA & FEATURES ==================
 @st.cache_data(ttl=60 * 60)
 def load_nifty_data():
-    # Adjust ticker if you used a different one (e.g. ^NSEI)
+    """
+    Download Nifty50 data from yfinance.
+    Adjust the ticker if needed (e.g., ^NSEI is common for Nifty 50).
+    """
     df = yf.download("^NSEI", period="2y", interval="1d")
     df.reset_index(inplace=True)
 
-    # Make sure we have the same column names you used in feature engineering
     df.rename(
         columns={
             "Date": "Date",
@@ -44,13 +46,10 @@ def load_nifty_data():
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Replicates your feature engineering script, but starting from yfinance data
-    instead of CSV. This matches your nifty50_features pipeline.
+    Feature engineering aligned with your training script,
+    without Close_Above_MA20 (not used in X).
     """
     df = df.copy()
-
-    # Remove duplicate columns, if any, which can cause issues with feature creation.
-    df = df.loc[:, ~df.columns.duplicated()]
 
     # Ensure Date is datetime and sorted
     df["Date"] = pd.to_datetime(df["Date"])
@@ -73,23 +72,20 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     df["MA_5"] = df["Close"].rolling(window=5).mean()
     df["MA_20"] = df["Close"].rolling(window=20).mean()
 
-    # ---- Feature 6: Price Trend (1 if above MA20, else 0) ----
-    df["Close_Above_MA20"] = (df["Close"] > df["MA_20"]).astype(int)
-
-    # ---- Feature 7: Rolling High/Low difference ----
+    # ---- Feature 6: Rolling High/Low difference ----
     df["HL_Diff"] = df["High"] - df["Low"]
 
-    # ---- Feature 8: Days Since Start (numerical time feature) ----
+    # ---- Feature 7: Days Since Start (numerical time feature) ----
     df["Days"] = (df["Date"] - df["Date"].min()).dt.days
 
-    # ---- Feature 9: Date breakdown features ----
+    # ---- Feature 8: Date breakdown features ----
     df["Day"] = df["Date"].dt.day
     df["Month"] = df["Date"].dt.month
     df["Year"] = df["Date"].dt.year
     df["Weekday"] = df["Date"].dt.weekday  # 0=Monday, 6=Sunday
     df["DayName"] = df["Date"].dt.day_name()
 
-    # ---- Feature 10: Volume rolling average ----
+    # ---- Feature 9: Volume rolling average ----
     df["Volume_MA_5"] = df["Volume"].rolling(window=5).mean()
 
     # ---- Remove initial NaN rows caused by shifting/rolling ----
@@ -113,7 +109,7 @@ def prepare_xy(df_feat: pd.DataFrame):
     feature_cols = [
         "Prev_Close", "Return_Sign", "Volatility_5d",
         "MA_5", "MA_20", "HL_Diff", "Days",
-        "Day", "Month", "Year", "Weekday", "Volume_MA_5", "Volume"
+        "Day", "Month", "Year", "Weekday", "Volume_MA_5", "Volume",
     ]
     X = df_feat[feature_cols]
     y = df_feat["Close"]
@@ -133,7 +129,7 @@ def train_model(df_feat: pd.DataFrame):
     model = LinearRegression()
     model.fit(X_train, y_train)
 
-    # Metrics
+    # Predictions for metrics
     y_train_pred = model.predict(X_train)
     y_test_pred = model.predict(X_test)
 
@@ -163,20 +159,30 @@ with st.spinner("Downloading Nifty50 data and training model..."):
 
 # Latest row for prediction
 latest_row = feat_df.iloc[-1]
-X_latest = latest_row[feature_cols].to_frame().T
-predicted_price = model.predict(X_latest)[0]
 
-last_date = latest_row["Date"]
-last_close = latest_row["Close"]
+# ---- FORCE SCALARS SAFELY ----
+raw_last_date = latest_row["Date"]
+raw_last_close = latest_row["Close"]
+
+# Handle if they are Series/DataFrame or numpy
+if isinstance(raw_last_date, (pd.Series, pd.DataFrame, np.ndarray)):
+    last_date = pd.to_datetime(np.array(raw_last_date).ravel()[0])
+else:
+    last_date = pd.to_datetime(raw_last_date)
+
+if isinstance(raw_last_close, (pd.Series, pd.DataFrame, np.ndarray)):
+    last_close = float(np.array(raw_last_close).ravel()[0])
+else:
+    last_close = float(raw_last_close)
+
+X_latest = latest_row[feature_cols].to_frame().T
+predicted_price = float(model.predict(X_latest)[0])
 
 # ================== UI DISPLAY ==================
 st.subheader("📅 Latest Market Snapshot")
 col1, col2 = st.columns(2)
 with col1:
-    if isinstance(last_date, (pd.Timestamp, datetime)):
-        last_date_str = last_date.strftime("%Y-%m-%d")
-    else:
-        last_date_str = str(last_date)
+    last_date_str = last_date.strftime("%Y-%m-%d")
     st.metric("Last Date", last_date_str)
 with col2:
     st.metric("Last Close", f"{last_close:,.2f}")
@@ -209,6 +215,5 @@ with st.expander("Show feature-engineered data (tail)"):
 st.markdown("---")
 st.caption(
     "This Streamlit Cloud app runs everything inside one script:\n"
-    "yfinance → feature engineering (same as your Python script) → Linear Regression → prediction.\n"
-    "Your local FastAPI + Postgres pipeline is still valid for local / offline use."
+    "yfinance → feature engineering → Linear Regression → prediction."
 )
