@@ -49,6 +49,9 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
+    # Remove duplicate columns, if any, which can cause issues with feature creation.
+    df = df.loc[:, ~df.columns.duplicated()]
+
     # Ensure Date is datetime and sorted
     df["Date"] = pd.to_datetime(df["Date"])
     df.sort_values("Date", inplace=True)
